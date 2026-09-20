@@ -1,6 +1,6 @@
-# tauri-plugin-lingyi-toolbox 插件使用说明（Tauri v2）
+# tauri-plugin-lingyi-toolbox 插件使用说明（Tauri2）
 
-一款基于 Tauri v2 原生插件，封装了应用设置跳转、浏览器跳转、系统相册选图、权限申请 / 检查 / 设置页跳转等常用能力。目前只支持Android，桌面端为占位实现（调用将返回 `Unsupported platform`）。
+一款基于 Tauri2 原生插件，封装了应用设置跳转、浏览器跳转、系统相册选图、权限申请 / 检查 / 设置页跳转等常用能力。目前只支持Android，桌面端为占位实现（调用将返回 `Unsupported platform`）。
 
 ---
 
@@ -57,7 +57,7 @@ allprojects {
 
 ### 1. Rust 侧注册
 
-在 `src-tauri/src/lib.rs`（或 `main.rs`）中注册插件：
+在 `src-tauri/src/lib.rs`中注册插件：
 
 ```rust
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -71,9 +71,9 @@ pub fn run() {
 
 ### 2. 前端权限声明
 
-插件的 `permissions/default.toml` 中定义了一个 `[default]` 权限组，把全部 6 个命令的 `allow-*` 权限预先打包在一起。宿主项目中有两种开启方式，**二选一**：
+在`src-tauri\capabilities\default.json`中添加：
 
-**方式一：使用默认权限组（推荐，一键开启全部命令）**
+方式一：使用默认权限组（推荐，一键开启全部命令）
 
 ```json
 {
@@ -81,7 +81,7 @@ pub fn run() {
 }
 ```
 
-**方式二：按需单独开启（粒度更细，最小权限原则）**
+方式二：按需单独开启（粒度更细，最小权限原则）
 
 ```json
 {
@@ -96,14 +96,9 @@ pub fn run() {
 }
 ```
 
-说明：
-- 每个 `#[tauri::command]` 在编译时会由 `build.rs` 中的 `COMMANDS` 列表自动生成对应的 `allow-<命令名>` 和 `deny-<命令名>` 权限，命名规则为命令名转 kebab-case（如 `open_app_details` → `allow-open-app-details`）。
-- `default.toml` 只是把这些 `allow-*` 项组合成 `default` 组，**不影响单独引用**；也可以混用 `"lingyi-toolbox:default"` 再加 `"deny-pick-image"` 做排除。
-- 未在 capabilities 中声明的命令，前端调用会被 Tauri 拦截并报权限错误。
-
 ### 3. AndroidManifest 声明权限
 
-**必须在宿主 App 的 `src-tauri/gen/android/app/src/main/AndroidManifest.xml`（或 `app/src/main/AndroidManifest.xml`）中显式声明**用到的 Android 权限，例如：
+若需要使用权限相关的功能，则需要在`src-tauri/gen/android/app/src/main/AndroidManifest.xml`中添加相相对于的权限：
 
 ```xml
 <manifest ...>
@@ -114,28 +109,16 @@ pub fn run() {
 </manifest>
 ```
 
-> ⚠️ 只在前端 / Kotlin 中处理权限是不够的，`uses-permission` 必须写进 Manifest，否则系统不会授予。
-
-### 4. 前端调用
-
-```ts
-import {
-  openAppDetails,
-  openBrowser,
-  pickImage,
-  checkPermission,
-  requestPermission,
-  openPermissionSettings,
-} from "@tauri-apps/lingyi-toolbox";
-```
-
 ---
 
 ## 三、API 详细说明
 
 ### 1. openAppDetails() 打开应用详情页
 
+JavaScript：
+
 ```ts
+import {openAppDetails} from "tauri-plugin-lingyi-toolbox"
 try {
   await openAppDetails();
 } catch (error) {
@@ -143,15 +126,42 @@ try {
 }
 ```
 
+rust：
+
+~~~rust
+use tauri::AppHandle;
+use tauri_plugin_lingyi_toolbox::AppsettiingExt;
+async fn open_app_details_cmd(app: AppHandle) -> Result<(), String> {
+    app.lingyi_toolbox()
+        .open_app_details()
+        .map_err(|e| e.to_string())
+}
+~~~
+
 ### 2. openBrowser(url, packageName?) 打开浏览器
 
+JavaScript：
+
 ```ts
+import {openBrowser} from "tauri-plugin-lingyi-toolbox"
 // 使用默认浏览器
 await openBrowser("https://www.baidu.com/");
 
 // 指定浏览器
 await openBrowser("https://www.baidu.com/", "com.android.chrome");
 ```
+
+rust：
+
+~~~rust
+use tauri::AppHandle;
+use tauri_plugin_lingyi_toolbox::AppsettiingExt;
+async fn open_browser_cmd(app: AppHandle, url: String, package_name: Option<String>) -> Result<(), String> {
+    app.lingyi_toolbox()
+        .open_browser(url, package_name)
+        .map_err(|e| e.to_string())
+}
+~~~
 
 | 参数 | 类型 | 说明 |
 |---|---|---|
@@ -162,11 +172,26 @@ await openBrowser("https://www.baidu.com/", "com.android.chrome");
 
 ### 3. pickImage() 系统相册选图
 
+JavaScript：
+
 ```ts
+import {pickImage} from "tauri-plugin-lingyi-toolbox"
 const { uri, base64, mimeType, size, name, filePath } = await pickImage();
 ```
 
-返回值 `PickImageResult`：
+rust：
+
+~~~rust
+use tauri::AppHandle;
+use tauri_plugin_lingyi_toolbox::AppsettiingExt;
+async fn pick_image_cmd(app: AppHandle) -> Result<tauri_plugin_lingyi_toolbox::models::PickImageResponse, String> {
+    app.lingyi_toolbox()
+        .pick_image()
+        .map_err(|e| e.to_string())
+}
+~~~
+
+返回值：
 
 | 字段 | 说明 |
 |---|---|
@@ -194,119 +219,76 @@ img.src = convertFileSrc(filePath);
 
 ### 4. checkPermission(permission) 检查权限
 
+JavaScript：
+
 ```ts
+import {checkPermission} from "tauri-plugin-lingyi-toolbox"
 const { granted } = await checkPermission("android.permission.CAMERA");
 ```
 
-> ⚠️ **本命令刻意不区分"临时拒绝 / 永久拒绝"**。原因：XXPermissions 的 `isDoNotAskAgainPermissions` 在非申请场景调用会污染状态，导致后续无法弹窗；Android 官方 API 也无法区分"从未申请"与"永久拒绝"。
+rust：
 
+~~~rust
+use tauri::AppHandle;
+use tauri_plugin_lingyi_toolbox::AppsettiingExt;
+async fn check_permission_cmd(
+    app: AppHandle,
+    permission: String,
+) -> Result<tauri_plugin_lingyi_toolbox::models::CheckPermissionResponse, String> {
+    app.lingyi_toolbox()
+        .check_permission(permission)
+        .map_err(|e| e.to_string())
+}
+~~~
 ### 5. requestPermission(permission) 申请权限
 
+JavaScript：
+
 ```ts
+import {requestPermission} from "tauri-plugin-lingyi-toolbox"
 const { granted, neverAskAgain } = await requestPermission("android.permission.CAMERA");
 ```
+
+rust：
+
+~~~rust
+use tauri::AppHandle;
+use tauri_plugin_lingyi_toolbox::AppsettiingExt;
+async fn request_camera_cmd(app: AppHandle) -> Result<tauri_plugin_lingyi_toolbox::models::RequestPermissionResponse, String> {
+    app.lingyi_toolbox()
+        .request_permission("android.permission.CAMERA".to_string())
+        .map_err(|e| e.to_string())
+}
+~~~
 
 | 返回字段 | 说明 |
 |---|---|
 | granted | 权限是否被授予 |
-| neverAskAgain | 用户是否勾选"不再询问"（**仅在本次申请的回调中判断才准确**，系统限制） |
+| neverAskAgain | 是否永久拒绝 |
 
 ### 6. openPermissionSettings(permission) 跳转权限设置页
 
+JavaScript：
+
+
 ```ts
+import {openPermissionSettings} from "tauri-plugin-lingyi-toolbox"
 await openPermissionSettings("android.permission.CAMERA");
 ```
 
-框架会自动根据权限类型选择最佳设置页（悬浮窗 → 悬浮窗设置页、所有文件访问 → 文件管理页、通知 → 通知设置页、普通危险权限 → 应用权限管理页），并自带 Intent 兜底。
+rust：
 
----
-
----
-
-## 三-R、Rust 端使用示例
-
-除前端 JS 调用外，Rust 侧（其他插件、命令处理器、后台任务中）也可直接调用插件能力，通过 `AppsettiingExt` trait 获取句柄：
-
-### 1. 注册插件（必需，仅一次）
-
-```rust
-// src-tauri/src/lib.rs
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_lingyi_toolbox::init())  // 注册 lingyi-toolbox 插件
-        // .plugin(tauri_plugin_notification::init())  // 其他插件...
-        .invoke_handler(tauri::generate_handler![my_command])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
-}
-```
-
-### 2. 在自己的命令中调用插件
-
-```rust
+~~~rust
 use tauri::AppHandle;
 use tauri_plugin_lingyi_toolbox::AppsettiingExt;
-
-/// 检查相机权限并在未授权时申请
-#[tauri::command]
-async fn ensure_camera(app: AppHandle) -> Result<bool, String> {
-    // 1. 先检查
-    let checked = app
-        .lingyi_toolbox()
-        .check_permission("android.permission.CAMERA".to_string())
-        .map_err(|e| e.to_string())?;
-
-    if checked.granted {
-        return Ok(true);
-    }
-
-    // 2. 申请（注意：权限弹窗必须在主线程/UI 上下文发起，
-    //    若在异步任务中调用请通过 spawn_blocking 或 State 管理）
-    let result = app
-        .lingyi_toolbox()
-        .request_permission("android.permission.CAMERA".to_string())
-        .map_err(|e| e.to_string())?;
-
-    if result.granted {
-        return Ok(true);
-    }
-
-    // 3. 永久拒绝 → 引导去设置页
-    if result.never_ask_again {
-        app.lingyi_toolbox()
-            .open_permission_settings("android.permission.CAMERA".to_string())
-            .map_err(|e| e.to_string())?;
-    }
-
-    Ok(false)
-}
-```
-
-### 3. 打开应用详情 / 浏览器
-
-```rust
-#[tauri::command]
-fn open_about_page(app: AppHandle) -> Result<(), String> {
-    // 打开本应用详情页
-    app.lingyi_toolbox().open_app_details().map_err(|e| e.to_string())?;
-
-    // 打开浏览器
+async fn open_permission_settings_cmd(app: AppHandle, permission: String) -> Result<(), String> {
     app.lingyi_toolbox()
-        .open_browser("https://www.baidu.com/".to_string(), None)
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
+        .open_permission_settings(permission)
+        .map_err(|e| e.to_string())
 }
-```
+~~~
 
-### 4. Rust 侧注意事项
-
-- 通过 `app.lingyi_toolbox()`（`AppHandle` / `App` / `Window` 均可，凡实现 `Manager<R>` 者）获取插件实例，无需手动管理状态。
-- trait 名称为 `AppsettiingExt`（注意拼写），`use tauri_plugin_lingyi_toolbox::AppsettiingExt;` 后即可使用。
-- 桌面端所有方法均返回 `Err("Unsupported platform")`，Rust 侧如需跨平台，请先判断 `cfg!(mobile)` 或捕获该错误。
-- 错误类型实现了 `Serialize`（序列化为字符串），通过 `.map_err(|e| e.to_string())` 即可传给前端。
-- 权限申请涉及 UI 弹窗，避免在非 UI 线程直接发起（`async` 命令体内调用前可考虑 `tauri::async_runtime::spawn_blocking`）。
+框架会自动根据权限类型选择最佳设置页（悬浮窗 → 悬浮窗设置页、所有文件访问 → 文件管理页、通知 → 通知设置页、普通危险权限 → 应用权限管理页），并自带 Intent 兜底。
 
 ---
 
@@ -392,51 +374,16 @@ async function ensurePermission(permission: string): Promise<boolean> {
 
 ---
 
-## 六、项目结构
-
-```
-src-tauri/
-├─ src/（Rust 插件侧）
-│  ├─ lib.rs        # 插件入口：init() 注册命令与状态
-│  ├─ commands.rs   # #[tauri::command] 命令定义
-│  ├─ models.rs     # 请求/响应结构体（serde 序列化）
-│  ├─ mobile.rs     # Android 实现：register_android_plugin 绑定 Kotlin 类
-│  ├─ desktop.rs    # 桌面端占位实现（返回 UnsupportedPlatform）
-│  ├─ error.rs      # 错误类型（注：当前未被 lib.rs 引用）
-│  └─ build.rs      # tauri_plugin 构建脚本，生成权限定义
-├─ android/
-│  ├─ build.gradle.kts   # compileSdk=36, minSdk=21, 依赖 XXPermissions 28.3
-│  ├─ settings.gradle    # 引入 :tauri-android 本地模块
-│  └─ src/main/java/com/plugin/lingyi_toolbox/
-│     └─ AppSettingPlugin.kt  # 6 个 @Command 原生命令
-├─ permissions/default.toml  # 默认权限组
-└─ guest-js/index.ts / dist-js/  # 前端 JS API 封装
-```
-
-构建相关：Kotlin 1.8.20、Android Gradle Plugin 8.0.2、XXPermissions 迁移至 JitPack（`com.github.getActivity:XXPermissions:28.3`），另引入 `DeviceCompat:2.6`。
-
----
-
 ## 七、注意事项与常见问题
 
 1. **Manifest 必须声明权限**：`uses-permission` 不声明时，系统直接拒绝且部分机型不弹窗。特殊权限（悬浮窗、所有文件等）还需在设置页手动开启。
+2. **一次只申请一个权限**：`requestPermission` / `checkPermission` 为单权限设计，批量申请需循环调用（建议串行并做防抖）。
+3. **相册选图内存问题**：`base64` 适合小图；大图请用 `filePath` + `convertFileSrc`。复制到缓存目录失败时 `filePath` 为空字符串但 `base64` 仍返回。
+4. **content:// URI 不能直接渲染**：相册返回的 `uri` 仅供标识；跨进程 URI 没有读取权限，必须用返回的 `filePath` 或 `base64`。
+5. **异常信息字符串**：所有 reject / Rust Error 序列化为字符串（如 `"Unsupported platform"`、`"不支持的权限: xxx"`），前端按字符串匹配处理。
+6. **Android 版本适配**：XXPermissions 会自动处理新旧版本差异（如 Android 13 用 `READ_MEDIA_IMAGES` 替代 `READ_EXTERNAL_STORAGE`），但仍建议按版本声明 Manifest 权限。
 
-2. **neverAskAgain 只在申请回调中准确**：不要通过 `checkPermission` 推断永久拒绝状态，也不要在非申请场景调用 XXPermissions 的 `isDoNotAskAgainPermissions`，会污染状态导致后续无法弹窗。
 
-3. **一次只申请一个权限**：`requestPermission` / `checkPermission` 为单权限设计，批量申请需循环调用（建议串行并做防抖）。
 
-4. **相册选图内存问题**：`base64` 适合小图；大图请用 `filePath` + `convertFileSrc`。复制到缓存目录失败时 `filePath` 为空字符串但 `base64` 仍返回。
 
-5. **content:// URI 不能直接渲染**：相册返回的 `uri` 仅供标识；跨进程 URI 没有读取权限，必须用返回的 `filePath` 或 `base64`。
 
-6. **错误均为字符串**：所有 reject / Rust Error 序列化为字符串（如 `"Unsupported platform"`、`"不支持的权限: xxx"`），前端按字符串匹配处理。
-
-7. **桌面端全部不可用**：桌面调用任一命令返回 `Unsupported platform` 错误，前端应做平台判断（如 `isAndroid()` 或 feature detect）。
-
-8. **权限名大小写与全名**：必须传完整权限名（如 `android.permission.CAMERA`），健康权限为 `android.permission.health.XXX`，缩写或不带前缀将报"不支持的权限"。
-
-9. **Android 版本适配**：XXPermissions 会自动处理新旧版本差异（如 Android 13 用 `READ_MEDIA_IMAGES` 替代 `READ_EXTERNAL_STORAGE`），但仍建议按版本声明 Manifest 权限。
-
-10. **混淆**：release 包如需混淆，确认 `consumer-rules.pro` 保留 XXPermissions 相关类（框架本身已做 keep 处理）。
-
-11. **命名细节**：Rust trait 名为 `AppsettiingExt`（拼写如此），若二次开发修改请保持 `commands.rs` / `lib.rs` 引用一致；Kotlin 包名 `com.plugin.lingyi_toolbox` 必须与 `mobile.rs` 中 `PLUGIN_IDENTIFIER` 一致。
