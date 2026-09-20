@@ -1,0 +1,10 @@
+[default]
+description = "插件的默认权限"
+permissions = [
+    "allow-open-app-details",
+    "allow-open-browser",
+    "allow-pick-image",
+    "allow-request-permission",
+    "allow-check-permission",
+    "allow-open-permission-settings", 
+    ]
